@@ -13,7 +13,7 @@ import (
 
 func main() {
 	// set variables from arguments, if any
-	var imageFileName, templateFileName string
+	var imageFileName, templateFileName, outputFileName string
 	for k, v := range os.Args {
 		if k+1 >= len(os.Args) {
 			break
@@ -30,19 +30,26 @@ func main() {
 			imageFileName = next
 		case "-t", "--template-file":
 			templateFileName = next
+		case "-o", "--output-file":
+			outputFileName = next
 		}
 	}
 
-	if imageFileName == "" && templateFileName == "" {
-		fmt.Println("what the heck???? you didn't specify an image file OR a template file")
-		displayHelp()
-		return
-	} else if imageFileName == "" {
-		fmt.Println("hey there friend, specify me an image file")
-		displayHelp()
-		return
-	} else if templateFileName == "" {
-		fmt.Println("i need a template file to work")
+	imageFileMissing := imageFileName == ""
+	templateFileMissing := templateFileName == ""
+	outputFileMissing := outputFileName == ""
+	if imageFileMissing || templateFileMissing || outputFileMissing {
+		fmt.Println("okay, i don't have these files to do my job:")
+		if imageFileMissing {
+			fmt.Println("    - an image file")
+		}
+		if templateFileMissing {
+			fmt.Println("    - a template file")
+		}
+		if outputFileMissing {
+			fmt.Println("    - an output file")
+		}
+
 		displayHelp()
 		return
 	}
@@ -52,12 +59,21 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer imageFile.Close()
 
 	// open template file
 	templateFile, err := os.Open(templateFileName)
 	if err != nil {
 		panic(err)
 	}
+	defer templateFile.Close()
+
+	// open output file
+	outputFile, err := os.Create(outputFileName)
+	if err != nil {
+		panic(err)
+	}
+	defer outputFile.Close()
 
 	// decode wallpaper
 	img, _, err := image.Decode(imageFile)
@@ -84,7 +100,7 @@ func main() {
 	rightColorPair = assignColorPair(rightBrightness)
 
 	// see: function name
-	replaceTemplateStrings(templateFile, leftColorPair, rightColorPair)
+	replaceTemplateStrings(templateFile, outputFile, leftColorPair, rightColorPair)
 }
 
 // returns a respective colorPair based on the brightness of
@@ -100,7 +116,7 @@ func assignColorPair(sectionBrightness brite.ImageBrightness) colorPair {
 	return darkColor
 }
 
-func replaceTemplateStrings(templateFile *os.File, left colorPair, right colorPair) {
+func replaceTemplateStrings(templateFile, outputFile *os.File, left colorPair, right colorPair) {
 	all, err := ioutil.ReadAll(templateFile)
 	if err != nil {
 		panic(err)
@@ -116,48 +132,36 @@ func replaceTemplateStrings(templateFile *os.File, left colorPair, right colorPa
 	fileContentsString = strings.Replace(fileContentsString, rightPrimaryTemplateString, right.primary, -1)
 	fileContentsString = strings.Replace(fileContentsString, rightSecondaryTemplateString, right.secondary, -1)
 
-	// close the file. we'll reopen it for writing back to
-	// it
-	err = templateFile.Close()
-	if err != nil {
-		// THERE ARE SO MANY FREAKING PANIC CALLS I'M
-		// STRESSING OUT
-		panic(err)
-	}
-
-	// re-open the file to write to it
-	templateFile, err = os.Create(templateFile.Name())
-	if err != nil {
-		panic(err)
-	}
-	templateFile.WriteString(fileContentsString)
-	defer templateFile.Close()
+	outputFile.WriteString(fileContentsString)
 }
 
 func displayHelp() {
-	fmt.Println(`
+	fmt.Printf(`
 do something like this:"
 
-    status-bar-template-parsing-thing -i /path/to/wallpaper.jpg -t /path/to/template.config
+    status-bar-template-parsing-thing -i "/path/to/wallpaper.jpg" -t "/path/to/template.config" -o "/path/to/output.config"
 
 options:
 
     -i, --image-file, -w, --wallpaper-file
         path to a wallpaper you want to use
 
-    -t, --template-file"
+    -t, --template-file
         path to a template you want to use
         put these in your template and they will be replaced with colors (e.g. rrggbbaa)
-        " + leftPrimaryTemplateString + " should be used for bold colors on the left
-        " + rightPrimaryTemplateString + " should be used for bold colors on the right
-        " + leftSecondaryTemplateString + " should be used for faded colors on the left
-        " + rightSecondaryTemplateString + " should be used for faded colors on the right
+        "%s" should be used for bold colors on the left
+        "%s" should be used for bold colors on the right
+        "%s" should be used for faded colors on the left
+        "%s" should be used for faded colors on the right
+
+    -o, --output-file
+        path to the output file
 
     -l, --light-color
         lighter color you want to use
 
     -d, --dark-color
-        darker color you want to use`)
+        darker color you want to use` + "\n", leftPrimaryTemplateString, rightPrimaryTemplateString, leftSecondaryTemplateString, rightSecondaryTemplateString)
 
 }
 
