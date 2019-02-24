@@ -81,10 +81,14 @@ func main() {
 		panic(err)
 	}
 
-	// get brightness classification
+    // dimensions and stuff
 	quarterWidth := img.Bounds().Dx() / 4
-	leftStatusBounds := image.Rect(0, 0, quarterWidth, 32)
-	rightStatusBounds := image.Rect(quarterWidth*3, 0, quarterWidth, 32)
+    topOfImage := getTopOfImage(img)
+    fmt.Println("top of image:", topOfImage)
+
+	// get brightness classification
+	leftStatusBounds := image.Rect(0, topOfImage, quarterWidth, topOfImage + 32)
+	rightStatusBounds := image.Rect(quarterWidth*3, topOfImage, quarterWidth*4, topOfImage + 32)
 
 	// get brightness of the left and right status bar
 	// sections
@@ -101,6 +105,18 @@ func main() {
 
 	// see: function name
 	replaceTemplateStrings(templateFile, outputFile, leftColorPair, rightColorPair)
+}
+
+const screenAspectRatio = 16.0 / 9.0
+
+// gets the top of the visible wallpaper
+func getTopOfImage(img image.Image) int {
+    width, height := img.Bounds().Dx(), img.Bounds().Dy()
+
+    visibleHeight := float32(width)/screenAspectRatio
+    top := float32(height/2) - visibleHeight/2
+
+    return int(top)
 }
 
 // returns a respective colorPair based on the brightness of
